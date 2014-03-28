@@ -17,7 +17,7 @@
 	</style>
 </head>
 <body>
-<h1>Download Speed Test</h1>
+<h1>Speed Test</h1>
 <p>
 	<progress id="progress" max="5" value="0"></progress><br>
 	<span id="speed"></span>
@@ -70,6 +70,8 @@ var latencyResults = [];
 var speedResults = [];
 
 el.start.onclick = function (e) {
+	latencyResults = [];
+	speedResults = [];
 	el.progress.max = el.count.value;
 	el.progress.value = 0;
 	while (el.runs.firstChild) {
