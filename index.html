@@ -1,0 +1,144 @@
+<!doctype html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, user-scalable=no">
+	<title>Download Speed Test</title>
+	<style>
+	* { font-family:"Helvetica Neue", Helvetica, Arial, sans-serif; }
+	body { color:#333; line-height:1.5em; text-align:center; }
+	#progress { width:90%; }
+	#runs { position:relative; padding-left:0; list-style:none; counter-reset:item; }
+	#runs li:before { display:inline-block; content:"Run " counter(item) ": "; counter-increment:item; margin-right:0.5em; }
+	#start { padding:0.3em 0.6em; font-size:1.2em; cursor:pointer; background:#CCC; border:0; border-radius:1.5em; }
+	#start[disabled] { color:#999; }
+	#start:not([disabled]):hover { background:#DDD; }
+	#start:not([disabled]):active { background:#AAA; }
+	</style>
+</head>
+<body>
+<h1>Download Speed Test</h1>
+<p>
+	<progress id="progress" max="5" value="0"></progress><br>
+	<span id="speed"></span>
+</p>
+<select id="size">
+	<option value="512">512KB</option>
+	<option value="1024">1MB</option>
+	<option value="2048">2MB</option>
+	<option value="4096" selected>4MB</option>
+	<option value="8192">8MB</option>
+	<option value="16384">16MB</option>
+	<option value="32768">32MB</option>
+</select>
+for
+<select id="count">
+	<option value="1">1</option>
+	<option value="2">2</option>
+	<option value="3">3</option>
+	<option value="4">4</option>
+	<option value="5" selected>5</option>
+	<option value="6">6</option>
+	<option value="7">7</option>
+	<option value="8">8</option>
+	<option value="9">9</option>
+	<option value="10">10</option>
+	<option value="11">11</option>
+	<option value="12">12</option>
+	<option value="13">13</option>
+	<option value="14">14</option>
+	<option value="15">15</option>
+	<option value="16">16</option>
+	<option value="17">17</option>
+	<option value="18">18</option>
+	<option value="19">19</option>
+	<option value="20">20</option>
+</select>
+runs
+<button id="start">Start</button>
+<ol id="runs"></ol>
+<script>
+var el = {
+	progress: document.getElementById("progress"),
+	size: document.getElementById("size"),
+	count: document.getElementById("count"),
+	speed: document.getElementById("speed"),
+	runs: document.getElementById("runs"),
+	start: document.getElementById("start")
+};
+var latencyResults = [];
+var speedResults = [];
+
+el.start.onclick = function (e) {
+	el.progress.max = el.count.value;
+	el.progress.value = 0;
+	while (el.runs.firstChild) {
+		el.runs.removeChild(el.runs.firstChild);
+	}
+	el.speed.textContent = "";
+	this.disabled = true;
+	getPayload();
+}
+
+function getPayload() {
+	console.log("getPayload() call: " + el.progress.value);
+	var xhr = new XMLHttpRequest();
+	xhr.open("get", "./payload.php?size=" + el.size.value, true);
+	xhr.onreadystatechange = function () {
+		switch (xhr.readyState) {
+			case xhr.HEADERS_RECEIVED:
+				downloadStartTime = new Date().getTime();
+				break;
+			case xhr.DONE:
+				if (xhr.status == "200") {
+					var latency = downloadStartTime - startTime;
+					var downloadTime = (new Date().getTime() - downloadStartTime) / 1000;
+					var speed = 8192 / downloadTime;
+
+					latencyResults.push(latency);
+					speedResults.push(speed);
+
+					var li = document.createElement("li");
+					li.textContent = prettyLatency(latency) + " " + prettySpeed(speed);
+					el.runs.appendChild(li);
+					el.speed.textContent = "Average: " + prettyLatency(latencyResults.average()) + " " + prettySpeed(speedResults.average());
+
+					if (++el.progress.value < el.count.value) {
+						getPayload();
+					} else {
+						el.start.disabled = false;
+					}
+				} else {
+					console.log("getPayload() error: " + xhr.status)
+					getPayload();
+				}
+		}
+	}
+	var startTime = new Date().getTime(), downloadStartTime;
+	xhr.send();
+}
+
+function prettyLatency(latency) {
+	return Math.round(latency * 10) / 10 + "ms";
+}
+
+function prettySpeed(speed) {
+	var unit = ["KB/s", "MB/s", "GB/s"];
+	var whichUnit = 0;
+	while (speed >= 1024 && whichUnit < 2) {
+		speed /= 1024;
+		whichUnit++;
+	}
+	return Math.round(speed * 10) / 10 + unit[whichUnit];
+}
+
+Array.prototype.average = function () {
+	var total = 0, i = 0, length = this.length;
+	for (; i < length; i++) {
+		total += this[i];
+	}
+	return total / length;
+}
+</script>
+</body>
+</html>
