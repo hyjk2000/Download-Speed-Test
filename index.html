@@ -95,7 +95,7 @@ function getPayload() {
 				if (xhr.status == "200") {
 					var latency = downloadStartTime - startTime;
 					var downloadTime = (new Date().getTime() - downloadStartTime) / 1000;
-					var speed = 8192 / downloadTime;
+					var speed = el.size.value / downloadTime;
 
 					latencyResults.push(latency);
 					speedResults.push(speed);
