@@ -3,7 +3,7 @@
 <head>
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, user-scalable=no">
-	<title>Download Speed Test</title>
+	<title>Connection Speed Test</title>
 	<style>
 	* { font-family:"Helvetica Neue", Helvetica, Arial, sans-serif; }
 	body { color:#333; line-height:1.5em; text-align:center; }
@@ -22,6 +22,10 @@
 	<progress id="progress" max="5" value="0"></progress><br>
 	<span id="speed"></span>
 </p>
+<select id="direction">
+	<option value="download">Download</option>
+	<option value="upload">Upload</option>
+</select>
 <select id="size">
 	<option value="512">512KB</option>
 	<option value="1024">1MB</option>
@@ -60,9 +64,10 @@ runs
 <script>
 var el = {
 	progress: document.getElementById("progress"),
+	speed: document.getElementById("speed"),
+	direction: document.getElementById("direction"),
 	size: document.getElementById("size"),
 	count: document.getElementById("count"),
-	speed: document.getElementById("speed"),
 	runs: document.getElementById("runs"),
 	start: document.getElementById("start")
 };
@@ -79,45 +84,84 @@ el.start.onclick = function (e) {
 	}
 	el.speed.textContent = "";
 	this.disabled = true;
-	getPayload();
+
+	switch (el.direction.value) {
+		case "download":
+			getDownload();
+			break;
+		case "upload":
+			postUpload();
+			break;
+	}
 }
 
-function getPayload() {
-	console.log("getPayload() call: " + el.progress.value);
+function getDownload() {
+	console.log("getDownload() call: " + el.progress.value);
 	var xhr = new XMLHttpRequest();
 	xhr.open("get", "./payload.php?size=" + el.size.value, true);
-	xhr.onreadystatechange = function () {
-		switch (xhr.readyState) {
-			case xhr.HEADERS_RECEIVED:
-				downloadStartTime = new Date().getTime();
-				break;
-			case xhr.DONE:
-				if (xhr.status == "200") {
-					var latency = downloadStartTime - startTime;
-					var downloadTime = (new Date().getTime() - downloadStartTime) / 1000;
-					var speed = el.size.value / downloadTime;
+	var startTime = new Date().getTime(), downloadStartTime;
+	xhr.onloadstart = function () {
+		downloadStartTime = new Date().getTime();
+	}
+	xhr.onload = function () {
+		var latency = downloadStartTime - startTime;
+		var downloadTime = (new Date().getTime() - downloadStartTime) / 1000;
+		var speed = el.size.value / downloadTime;
 
-					latencyResults.push(latency);
-					speedResults.push(speed);
+		latencyResults.push(latency);
+		speedResults.push(speed);
 
-					var li = document.createElement("li");
-					li.textContent = prettyLatency(latency) + " " + prettySpeed(speed);
-					el.runs.appendChild(li);
-					el.speed.textContent = "Average: " + prettyLatency(latencyResults.average()) + " " + prettySpeed(speedResults.average());
+		var li = document.createElement("li");
+		li.textContent = prettyLatency(latency) + " " + prettySpeed(speed);
+		el.runs.appendChild(li);
+		el.speed.textContent = "Average: " + prettyLatency(latencyResults.average()) + " " + prettySpeed(speedResults.average());
 
-					if (++el.progress.value < el.count.value) {
-						getPayload();
-					} else {
-						el.start.disabled = false;
-					}
-				} else {
-					console.log("getPayload() error: " + xhr.status)
-					getPayload();
-				}
+		if (++el.progress.value < el.count.value) {
+			getDownload();
+		} else {
+			el.start.disabled = false;
 		}
 	}
-	var startTime = new Date().getTime(), downloadStartTime;
+	xhr.onerror = function () {
+		console.log("getDownload() error: " + xhr.statusText);
+		setTimeout(getDownload, 5000);
+	}
 	xhr.send();
+}
+
+function postUpload() {
+	console.log("postUpload() call:" + el.progress.value);
+	var blob = makeBlob(el.size.value);
+	var xhr = new XMLHttpRequest();
+	xhr.open("post", "./receiver.php", true);
+	var startTime = new Date().getTime(), uploadStartTime;
+	xhr.upload.onloadstart = function () {
+		uploadStartTime = new Date().getTime();
+	}
+	xhr.upload.onload = function () {
+		var latency = uploadStartTime - startTime;
+		var uploadTime = (new Date().getTime() - uploadStartTime) / 1000;
+		var speed = el.size.value / uploadTime;
+
+		latencyResults.push(latency);
+		speedResults.push(speed);
+
+		var li = document.createElement("li");
+		li.textContent = prettyLatency(latency) + " " + prettySpeed(speed);
+		el.runs.appendChild(li);
+		el.speed.textContent = "Average: " + prettyLatency(latencyResults.average()) + " " + prettySpeed(speedResults.average());
+
+		if (++el.progress.value < el.count.value) {
+			postUpload();
+		} else {
+			el.start.disabled = false;
+		}
+	}
+	xhr.upload.onerror = function () {
+		console.log("postUpload() error: " + xhr.statusText);
+		setTimeout(postUpload, 5000);
+	}
+	xhr.send(blob);
 }
 
 function prettyLatency(latency) {
@@ -132,6 +176,22 @@ function prettySpeed(speed) {
 		whichUnit++;
 	}
 	return Math.round(speed * 10) / 10 + unit[whichUnit];
+}
+
+function makeBlob(size) {
+	// file size in KB
+	size = parseInt(size);
+	if (size < 1 || size > 32768) size = 4096; // 0KB < size < 32MB
+
+	var bytesRemaining = size * 1024, block, aBlobParts = [];
+
+	while (bytesRemaining > 0) {
+		block = bytesRemaining < 8388608 ? bytesRemaining : 8388608; // 1 block = 8MB
+		bytesRemaining -= block;
+		aBlobParts.push(new Array(block));
+	}
+
+	return new Blob(aBlobParts, {"type": "application\/octet-stream"});
 }
 
 Array.prototype.average = function () {
